@@ -232,8 +232,8 @@ async fn process_with_interception(
         let _ = nav_done_tx.send((page, result)).await;
     });
 
-    let mut navigate_result: Result<(), String>;
-    let mut page_back: Option<obscura_browser::Page>;
+    let navigate_result: Result<(), String>;
+    let page_back: Option<obscura_browser::Page>;
 
     loop {
         let has_irx = intercept_rx.is_some();
