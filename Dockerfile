@@ -1,5 +1,5 @@
 # Stage 1: Build Obscura from source
-FROM rust:1.75-bookworm AS builder
+FROM rust:bookworm AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
