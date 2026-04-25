@@ -12,6 +12,9 @@ struct Args {
     #[arg(short, long, global = true)]
     verbose: bool,
 
+    #[arg(long, global = true)]
+    disable_console: bool,
+
     #[command(subcommand)]
     command: Option<Command>,
 
@@ -116,12 +119,15 @@ fn print_banner(port: u16) {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let filter = if args.verbose { "debug" } else { "warn" };
+    let mut filter_str = match std::env::var("RUST_LOG") {
+        Ok(v) => v,
+        Err(_) => if args.verbose { "debug".to_string() } else { "warn".to_string() }
+    };
+    if args.disable_console {
+        filter_str.push_str(",obscura::console=off");
+    }
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(filter)),
-        )
+        .with_env_filter(tracing_subscriber::EnvFilter::new(filter_str))
         .with_writer(std::io::stderr)
         .init();
 
@@ -141,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
 
             if workers > 1 {
                 tracing::info!("{} worker processes", workers);
-                run_multi_worker_serve(port, workers, proxy, stealth).await?;
+                run_multi_worker_serve(port, workers, proxy, stealth, args.disable_console).await?;
             } else {
                 obscura_cdp::start_with_options(port, proxy).await?;
             }
@@ -150,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
             run_fetch(&url, dump, selector, wait, &wait_until, user_agent, stealth, eval, quiet).await?;
         }
         Some(Command::Scrape { urls, eval, concurrency, format }) => {
-            run_parallel_scrape(urls, eval, concurrency, &format).await?;
+            run_parallel_scrape(urls, eval, concurrency, &format, args.disable_console).await?;
         }
         None => {
             print_banner(args.port);
@@ -169,6 +175,7 @@ async fn run_multi_worker_serve(
     workers: u16,
     proxy: Option<String>,
     stealth: bool,
+    disable_console: bool,
 ) -> anyhow::Result<()> {
     use tokio::net::TcpListener;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -185,6 +192,9 @@ async fn run_multi_worker_serve(
         }
         if stealth {
             cmd.arg("--stealth");
+        }
+        if disable_console {
+            cmd.arg("--disable-console");
         }
         cmd.stdout(std::process::Stdio::null());
         cmd.stderr(std::process::Stdio::null());
@@ -403,6 +413,7 @@ async fn run_parallel_scrape(
     eval: Option<String>,
     concurrency: usize,
     format: &str,
+    disable_console: bool,
 ) -> anyhow::Result<()> {
     let total = urls.len();
     let start = Instant::now();
@@ -439,7 +450,11 @@ async fn run_parallel_scrape(
             let _permit = sem.acquire().await.unwrap();
             let task_start = Instant::now();
 
-            let mut child = match TokioCommand::new(worker_path.as_ref())
+            let mut cmd = TokioCommand::new(worker_path.as_ref());
+            if disable_console {
+                cmd.env("RUST_LOG", "warn,obscura::console=off");
+            }
+            let mut child = match cmd
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())

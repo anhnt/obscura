@@ -41,5 +41,6 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV PORT=9222
 ENV WORKERS=1
 ENV STEALTH=true
+ENV DISABLE_CONSOLE=true
 
 ENTRYPOINT ["docker-entrypoint.sh"]
