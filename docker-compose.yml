@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  obscura:
+    build: .
+    container_name: obscura
+    ports:
+      - "9222:9222"
+    environment:
+      - PORT=9222
+      - WORKERS=2
+      - STEALTH=true
+    restart: unless-stopped
+    
+  # Example service to test connection
+  # Uncomment this to run playwright alongside obscura
+  # playwright-test:
+  #   image: mcr.microsoft.com/playwright:v1.43.0-jammy
+  #   depends_on:
+  #     - obscura
+  #   volumes:
+  #     - ./examples:/app/examples
+  #   working_dir: /app
+  #   command: bash -c "npm install playwright-core && node examples/playwright-test.js"
